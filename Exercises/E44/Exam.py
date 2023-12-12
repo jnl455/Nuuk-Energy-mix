@@ -1,6 +1,10 @@
 import os
 curr = os.getcwd()
 _repo = 'Nuuk-Energy-mix'
+d = {'main': os.path.join(os.getcwd().split(_repo,1)[0],_repo),
+     'curr': os.getcwd()}
+d.update({'py': os.path.join(d['main'], 'py'),
+          'data': os.path.join(d['main'], 'Data')})
 _repodir = os.path.join(os.getcwd().split(_repo,1)[0],_repo)
 _pydir = os.path.join(_repodir,'py')
 os.chdir(_pydir)
@@ -70,7 +74,7 @@ def marginalEconomicValue(model):
 	# For standard plants:
 	standard_power = adj.rc_pd(pyDbs.pdSum(model.db['λ_Generation'].xs('u',level='_type').abs() * model.hourlyCapFactors, 'h'), getTechs(['Standard'],model.db)).sort_index()
 	standard_power.index = adj.rc_pd(mi_power,getTechs(['Standard'],model.db))
-	storage_power = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs()+model.db['λ_charge'].xs('u',level='_type').abs()) * model.hourlyCapFactors, 'h'), getTechs(['Storage'],model.db))
+	storage_power = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs()) * model.hourlyCapFactors, 'h'), getTechs(['Storage'],model.db)) # +model.db['λ_charge'].xs('u',level='_type').abs()
 	storage_power.index = adj.rc_pd(mi_power,getTechs(['Storage'],model.db))
 	storage_energy = adj.rc_pd(pyDbs.pdSum(model.db['λ_stored'].xs('u',level='_type').abs(), 'h'), getTechs(['Storage'],model.db))
 	storage_energy.index = adj.rc_pd(mi_energy,getTechs(['Storage'],model.db))
@@ -82,7 +86,7 @@ def consumerWelfare(model):
 
 def producerWelfare(model):
 	standard = adj.rc_pd(pyDbs.pdSum(model.db['λ_Generation'].xs('u',level='_type').abs() * model.db['Generation'] , 'h'), getTechs(['Standard'],model.db)) 
-	storage = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs() * model.db['discharge'] + model.db['λ_charge'].xs('u',level='_type').abs() * model.db['charge']), 'h'), getTechs(['Storage'],model.db))
+	storage = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs() * model.db['discharge'] ), 'h'), getTechs(['Storage'],model.db)) # + model.db['λ_charge'].xs('u',level='_type').abs() * model.db['charge']
 	return pd.concat([standard, storage],axis=0)
 
 def getTechs(techs, db):
@@ -131,7 +135,7 @@ class mSimple(modelShell):
 	def globalDomains(self):
 		return {'Generation': adj.rc_pd(pd.MultiIndex.from_product([self.db['h'], self.db['id']]),getTechs(['Standard'],self.db)),
 				'discharge' : adj.rc_pd(pd.MultiIndex.from_product([self.db['h'], self.db['id']]),getTechs(['Storage'],self.db)),
-				'charge'	: adj.rc_pd(pd.MultiIndex.from_product([self.db['h'], self.db['id']]),getTechs(['Storage'],self.db)),
+				# 'charge'	: adj.rc_pd(pd.MultiIndex.from_product([self.db['h'], self.db['id']]),getTechs(['Storage'],self.db)),
 				'stored'	: adj.rc_pd(pd.MultiIndex.from_product([self.db['h'], self.db['id']]),getTechs(['Storage'],self.db)),			
 				'HourlyDemand': pyDbs.cartesianProductIndex([self.db['c'], self.db['h']]),
 				'equilibrium': self.db['h_constr'],
@@ -144,31 +148,31 @@ class mSimple(modelShell):
 	def c(self):
 		return [{'varName': 'Generation', 'value': adjMultiIndex.bc(self.db['mc'], self.globalDomains['Generation']),'conditions': getTechs(['Standard'],self.db)},
 				{'varName': 'HourlyDemand','value':-adjMultiIndex.bc(self.db['MWP'], self.globalDomains['HourlyDemand'])},
-				{'varName': 'discharge', 'value': adjMultiIndex.bc(self.db['mc'], self.globalDomains['discharge']),'conditions': getTechs('Storage',self.db)},
-				{'varName': 'charge','value': adjMultiIndex.bc(self.db['mc'], self.globalDomains['charge']),'conditions': getTechs('Storage',self.db)}]
+				{'varName': 'discharge', 'value': adjMultiIndex.bc(self.db['mc'], self.globalDomains['discharge']),'conditions': getTechs('Storage',self.db)}]#,
+				# {'varName': 'charge','value': adjMultiIndex.bc(self.db['mc'], self.globalDomains['charge']),'conditions': getTechs('Storage',self.db)}]
 
 	@property
 	def u(self):
 		return [{'varName': 'Generation', 'value': adjMultiIndex.bc(self.hourlyGeneratingCap, self.globalDomains['Generation']), 'conditions': getTechs(['Standard'],self.db)},
 				{'varName': 'HourlyDemand', 'value': self.hourlyLoad_c},
 				{'varName': 'stored', 'value': adjMultiIndex.bc(self.db['sCap'], self.globalDomains['stored'])},
-				{'varName': 'discharge', 'value': adjMultiIndex.bc(self.db['GeneratingCapacity'], self.globalDomains['discharge']), 'conditions': getTechs('Storage',self.db)},
-				{'varName': 'charge', 'value': adjMultiIndex.bc(self.db['GeneratingCapacity'], self.globalDomains['charge']), 'conditions': getTechs('Storage',self.db)}]
+				{'varName': 'discharge', 'value': adjMultiIndex.bc(self.db['GeneratingCapacity'], self.globalDomains['discharge']), 'conditions': getTechs('Storage',self.db)}]#,
+				# {'varName': 'charge', 'value': adjMultiIndex.bc(self.db['GeneratingCapacity'], self.globalDomains['charge']), 'conditions': getTechs('Storage',self.db)}]
 	
 	@property
 	def b_eq(self):
-		return [{'constrName': 'equilibrium'},{'constrName':'LawOfMotion'}]
+		return [{'constrName': 'equilibrium'},{'constrName':'LawOfMotion', 'value': self.db['Rainfall']}]
 	
 	@property
 	def A_eq(self):
 		return [{'constrName': 'equilibrium', 'varName': 'Generation', 'value': appIndexWithCopySeries(pd.Series(1, index = self.globalDomains['Generation']), 'h','h_constr')},
 				{'constrName': 'equilibrium', 'varName': 'HourlyDemand', 'value': appIndexWithCopySeries(pd.Series(-1, index = self.globalDomains['HourlyDemand']), 'h','h_constr')},
 				{'constrName': 'equilibrium', 'varName': 'discharge', 'value': appIndexWithCopySeries(pd.Series(1, index = self.globalDomains['discharge']), 'h', 'h_constr')},
-				{'constrName': 'equilibrium', 'varName': 'charge', 'value': appIndexWithCopySeries(pd.Series(-1, index = self.globalDomains['charge']), 'h', 'h_constr')},
+				# {'constrName': 'equilibrium', 'varName': 'charge', 'value': appIndexWithCopySeries(pd.Series(-1, index = self.globalDomains['charge']), 'h', 'h_constr')},
 				{'constrName': 'LawOfMotion', 'varName': 'stored', 'value': [appIndexWithCopySeries(pd.Series(1, index = self.globalDomains['stored']), ['id','h'], ['id_constr','h_constr']),
 																				 rollLevelS(appIndexWithCopySeries(adjMultiIndex.bc(-1, self.globalDomains['stored']), ['id','h'], ['id_constr','h_constr']), 'h',1)]},
-				{'constrName': 'LawOfMotion', 'varName': 'discharge', 'value': appIndexWithCopySeries(adjMultiIndex.bc(1/self.db['effS'], self.globalDomains['stored']), ['id','h'], ['id_constr','h_constr']), 'conditions': getTechs('Storage',self.db)},
-				{'constrName': 'LawOfMotion', 'varName': 'charge', 'value': appIndexWithCopySeries(adjMultiIndex.bc(-self.db['effS'] , self.globalDomains['stored']), ['id','h'], ['id_constr','h_constr']), 'conditions': getTechs('Storage',self.db)}]
+				{'constrName': 'LawOfMotion', 'varName': 'discharge', 'value': appIndexWithCopySeries(adjMultiIndex.bc(1/self.db['effS'], self.globalDomains['stored']), ['id','h'], ['id_constr','h_constr']), 'conditions': getTechs('Storage',self.db)}]#,
+				# {'constrName': 'LawOfMotion', 'varName': 'charge', 'value': appIndexWithCopySeries(adjMultiIndex.bc(-self.db['effS'] , self.globalDomains['stored']), ['id','h'], ['id_constr','h_constr']), 'conditions': getTechs('Storage',self.db)}]
 
 	def postSolve(self, solution, **kwargs):
 		if solution['status'] == 0:
