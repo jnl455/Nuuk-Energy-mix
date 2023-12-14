@@ -74,9 +74,9 @@ def marginalEconomicValue(model):
 	# For standard plants:
 	standard_power = adj.rc_pd(pyDbs.pdSum(model.db['λ_Generation'].xs('u',level='_type').abs() * model.hourlyCapFactors, 'h'), getTechs(['Standard'],model.db)).sort_index()
 	standard_power.index = adj.rc_pd(mi_power,getTechs(['Standard'],model.db))
-	storage_power = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs()) * model.hourlyCapFactors, 'h'), getTechs(['Storage'],model.db)) # +model.db['λ_charge'].xs('u',level='_type').abs()
+	storage_power = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs()) * model.hourlyCapFactors, 'h'), getTechs(['Storage'],model.db), sort=False)
 	storage_power.index = adj.rc_pd(mi_power,getTechs(['Storage'],model.db))
-	storage_energy = adj.rc_pd(pyDbs.pdSum(model.db['λ_stored'].xs('u',level='_type').abs(), 'h'), getTechs(['Storage'],model.db))
+	storage_energy = adj.rc_pd(pyDbs.pdSum(model.db['λ_stored'].xs('u',level='_type').abs(), 'h'), getTechs(['Storage'],model.db)).sort_index()
 	storage_energy.index = adj.rc_pd(mi_energy,getTechs(['Storage'],model.db))
 	return pd.concat([standard_power,storage_power,storage_energy],axis=0)
 
@@ -86,7 +86,7 @@ def consumerWelfare(model):
 
 def producerWelfare(model):
 	standard = adj.rc_pd(pyDbs.pdSum(model.db['λ_Generation'].xs('u',level='_type').abs() * model.db['Generation'] , 'h'), getTechs(['Standard'],model.db)) 
-	storage = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs() * model.db['discharge'] ), 'h'), getTechs(['Storage'],model.db)) # + model.db['λ_charge'].xs('u',level='_type').abs() * model.db['charge']
+	storage = adj.rc_pd(pyDbs.pdSum((model.db['λ_discharge'].xs('u',level='_type').abs() * model.db['discharge'] ), 'h'), getTechs(['Storage'],model.db), sort=False) # + model.db['λ_charge'].xs('u',level='_type').abs() * model.db['charge']
 	return pd.concat([standard, storage],axis=0)
 
 def getTechs(techs, db):
@@ -161,7 +161,7 @@ class mSimple(modelShell):
 	
 	@property
 	def b_eq(self):
-		return [{'constrName': 'equilibrium'},{'constrName':'LawOfMotion', 'value': self.db['Rainfall']}]
+		return [{'constrName': 'equilibrium'},{'constrName':'LawOfMotion', 'value': self.db['Precipitation']*self.db['hydro_scalar']}]
 	
 	@property
 	def A_eq(self):
