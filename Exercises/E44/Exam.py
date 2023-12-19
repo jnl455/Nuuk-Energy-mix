@@ -186,3 +186,4 @@ class mSimple(modelShell):
 			self.db['marketValueFactor'] = marketValueFactor(self.db)
 			self.db['consumerSurplus'] = consumerWelfare(self)
 			self.db['producerSurplus'] = producerWelfare(self)
+			
