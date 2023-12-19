@@ -1,6 +1,6 @@
 # Exam in Energy Economics of the Green Transition, E2023
 
-__Project title__: _Optimal electricity mix in Nuuk, Greenland_
+__Project title__: _Optimal energy mix in Nuuk, Greenland_
 __Submission date__: 20.12.2023
 
 Explanation of the codes:
